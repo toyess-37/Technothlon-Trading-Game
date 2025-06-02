@@ -250,7 +250,7 @@ def check_tier1_tier2_same_biome(zoo, animal_database):
 
     # return the counts of common biomes and natives for the 10% and 5% bonus respectively
     if not common_biomes and not common_natives:
-        return 0  # No bonus if no common biomes or natives
+        return {"non_native_match": 0, "native_match": 0}  # No bonus if no common biomes or natives
     return {"non_native_match": len(common_biomes), "native_match": len(common_natives)}
 
 # Calculate the 10% or 5% bonus income from Tier 1 and Tier 2 animals
@@ -259,7 +259,7 @@ def calculate_tier1_tier2_bonus(zoo, animal_database):
     has_same_biome = check_tier1_tier2_same_biome(zoo, animal_database)
     
     # Calculate total base income from Tier 1 and Tier 2 animals only
-    tier1_tier2_income = 0
+    tier1_tier2_income = 0.0
     
     for animal_id in zoo['animals']:
         animal = animal_database[animal_id]
@@ -267,7 +267,7 @@ def calculate_tier1_tier2_bonus(zoo, animal_database):
         # Only consider Tier 1 and Tier 2 animals
         if animal['tier'] in [1, 2]:
             # Calculate this animal's base income (without the 5%/10% bonus)
-            animal_income = calculate_animal_income(animal, zoo, animal_database)
+            animal_income = calculate_animal_income(animal, zoo)
             tier1_tier2_income += animal_income
     
     bonus_rate = 0
@@ -344,7 +344,7 @@ def calculate_animal_maintenance(animal, zoo):
 
 def calculate_final_score(zoo, animals):
     # Calculate total income from animals
-    total_income = 0
+    total_income = 0.0
     for animal_id in zoo['animals']:
         animal = animals[animal_id]
         income = calculate_animal_income(animal, zoo)
