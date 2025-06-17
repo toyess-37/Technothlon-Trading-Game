@@ -45,7 +45,7 @@ MULTIPLIER_TABLE = {
 # Zoo template
 def create_zoo(zoo_id, continent, biome_index):
     """Create a zoo with the specified attributes"""
-    biome_type = ZOO_BIOMES[biome_index-1]
+    biome_type = ZOO_BIOMES[biome_index]
     
     # Calculate the multiplier based on the following table:
     multiplier = MULTIPLIER_TABLE[continent][biome_index-1]
@@ -120,10 +120,6 @@ TIER_LIMITS = {
     4: float('inf')             # No limit for Tier 4 animals
 }
 
-def get_native_biome (animal):
-    # The native biome is the last in the preference order (index 4, preference 5)
-    return animal['preference_order'][4]
-
 def count_animals_by_tier(zoo):
     """Count animals by tier in a zoo"""
     tier_counts = {1: 0, 2: 0, 3: 0, 4: 0}
@@ -131,6 +127,10 @@ def count_animals_by_tier(zoo):
         tier = int(animal_id.split('_')[0])
         tier_counts[tier] += 1
     return tier_counts
+
+def get_native_biome (animal):
+    # The native biome is the last in the preference order (index 4, preference 5)
+    return animal['preference_order'][4]
 
 def get_animal_in_native_biome(animal, zoo):
     """Check if an animal is in its native biome"""
@@ -143,7 +143,10 @@ def get_animal_biome_pref_index(animal, zoo):
 
 # Animal template
 def create_animal(animal_id, name=None):
-    """Create an animal with the specified attributes"""
+    """
+    Create an animal with the specified attributes
+    Example: "1101" -> Tier 1, biome index 1 (forest), serial 01
+    """
 
     tier = int(animal_id[0])
     biome_index = int(animal_id[1])
@@ -188,8 +191,11 @@ def initialize_animals(count_per_tier={1: 2, 2: 4, 3: 7, 4: 11}, csv_file_path=N
                 reader = csv.DictReader(csvfile)
                 for row in reader:
                     # Assuming the CSV has columns: id, name
-                    animal_id = row['id']
-                    animal_data_from_csv[animal_id] = {'name': row['name']}
+                    animal_id = row.get('Animal ID', '').strip()
+                    animal_name = row.get('Animal Name', '').strip()
+
+                    if animal_id:
+                        animal_data_from_csv[animal_id] = {'name': animal_name}
         except Exception as e:
             print(f"Error reading animal data from CSV: {e}")
     
@@ -199,10 +205,8 @@ def initialize_animals(count_per_tier={1: 2, 2: 4, 3: 7, 4: 11}, csv_file_path=N
             for serial_number in range(1, count + 1):
                 animal_id = f"{tier}{biome_index}{serial_number:02d}"
                 if animal_id in animal_data_from_csv:
-                    csv_data = animal_data_from_csv[animal_id]
-                    name = csv_data['name']
+                    name = animal_data_from_csv[animal_id]['name']
                 else:
-                    # Create a default name
                     name = f"Tier {tier} {biome.capitalize()} Animal {serial_number}"
 
                 # Create the animal
