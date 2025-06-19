@@ -63,14 +63,15 @@ def create_zoo(zoo_id, continent, biome_index):
     }
 
 # Initialize all 25 zoos
+
 def initialize_zoos():
     zoos = {}
-    
+
     for continent in 'ABCDE':
         for i in range(1, 6):
-            zoo_id = f"{continent}[{i}]"
+            zoo_id = f"{continent}{i}"
             zoos[zoo_id] = create_zoo(zoo_id, continent, i)
-    
+
     return zoos
 # ----------------------------------------------------------------------------------------------------
 
@@ -124,7 +125,7 @@ def count_animals_by_tier(zoo):
     """Count animals by tier in a zoo"""
     tier_counts = {1: 0, 2: 0, 3: 0, 4: 0}
     for animal_id in zoo['animals']:
-        tier = int(animal_id.split('_')[0])
+        tier = int(animal_id[0])
         tier_counts[tier] += 1
     return tier_counts
 
