@@ -8,4 +8,6 @@ In addition, the continent as a whole predominantly favors exactly one of the ty
 
 Each player is the _owner_ of a zoo (to be selected by the player) and is given **100** coins to spend. They have to acquire animals to their zoos, through auction or trading (during sessions). Each animal comes with its own set of traits and perks, which will be explained in greater detail later. In the end, an objective scoring system quantitatively determines the winner.
 
-More details to be added.
+We've attached the development report (discussions, insights and challenges faced). The bottle-neck in the execution was: an online interface for timed conduction of the auction. We have developed an interface for the same (we had to slightly modify the auction rules for this online implementation because of several redundancies in the offline one).
+
+Future challenge will be to create a trading interface to completely automate the project.
