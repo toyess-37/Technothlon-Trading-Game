@@ -143,7 +143,7 @@ def get_animal_biome_pref_index(animal, zoo):
     return animal['preference_order'].index(zoo['biome'])
 
 # Animal template
-def create_animal(animal_id, name=None):
+def create_animal(animal_id, name):
     """
     Create an animal with the specified attributes
     Example: "1101" -> Tier 1, biome index 1 (forest), serial 01
@@ -182,21 +182,21 @@ def initialize_animals(count_per_tier={1: 2, 2: 4, 3: 7, 4: 11}, csv_file_path=N
     """
     
     # Initialize animals dictionary
-    animals = {}
+    animals: dict[str, dict] = {}
 
     # Read animal data from CSV if provided
-    animal_data_from_csv = {}
+    animal_data_from_csv: dict[str, str] = {}
     if csv_file_path:
         try:
             with open(csv_file_path, 'r', newline='') as csvfile:
-                reader = csv.DictReader(csvfile)
+                reader = csv.DictReader(csvfile, skipinitialspace=True)
                 for row in reader:
                     # Assuming the CSV has columns: id, name
                     animal_id = row.get('Animal ID', '').strip()
                     animal_name = row.get('Animal Name', '').strip()
 
                     if animal_id:
-                        animal_data_from_csv[animal_id] = {'name': animal_name}
+                        animal_data_from_csv[animal_id] = animal_name
         except Exception as e:
             print(f"Error reading animal data from CSV: {e}")
     
@@ -205,8 +205,8 @@ def initialize_animals(count_per_tier={1: 2, 2: 4, 3: 7, 4: 11}, csv_file_path=N
         for tier, count in count_per_tier.items():
             for serial_number in range(1, count + 1):
                 animal_id = f"{tier}{biome_index}{serial_number:02d}"
-                if animal_id in animal_data_from_csv:
-                    name = animal_data_from_csv[animal_id]['name']
+                if animal_id in animal_data_from_csv.keys():
+                    name = animal_data_from_csv[animal_id]
                 else:
                     name = f"Tier {tier} {biome.capitalize()} Animal {serial_number}"
 
