@@ -43,8 +43,7 @@ class Animal:
 
     def to_dict(self):
         """Convert animal back to dictionary format for compatibility."""
-        return 
-        {
+        return {
             'id': self.id,
             'name': self.name,
             'tier': self.tier,
@@ -167,6 +166,7 @@ class Player:
         self.is_active = True
         self.is_human = False  # Flag to distinguish human vs AI players
         self.owned_animals = []  # List of animal IDs owned by this player
+        self.pending_bids = {}  # Track pending bids {animal_id: bid_amount}
         
         # Set zoo owner if zoo is provided
         if self.zoo:
@@ -188,6 +188,33 @@ class Player:
             return True
         return False
 
+    def get_available_money(self):
+        """Get available money (total money minus pending bids)."""
+        total_pending = sum(self.pending_bids.values())
+        return self.money - total_pending
+    
+    def can_afford_bid(self, bid_amount: int, animal_id: str):
+        """Check if player can afford a bid considering pending bids."""
+        # Get current pending bid for this animal (if any)
+        current_bid_on_animal = self.pending_bids.get(animal_id, 0)
+        # Calculate total pending excluding current animal
+        total_pending_others = sum(amount for aid, amount in self.pending_bids.items() if aid != animal_id)
+        # Check if new bid is affordable
+        return (total_pending_others + bid_amount) <= self.money
+
+    def update_pending_bid(self, animal_id: str, bid_amount: int):
+        """Update pending bid for an animal."""
+        self.pending_bids[animal_id] = bid_amount
+    
+    def clear_pending_bid(self, animal_id: str):
+        """Clear pending bid for an animal."""
+        if animal_id in self.pending_bids:
+            del self.pending_bids[animal_id]
+    
+    def clear_all_pending_bids(self):
+        """Clear all pending bids."""
+        self.pending_bids.clear()
+
     def get_zoo_biome(self):
         """Get the biome of the player's zoo."""
         return self.zoo.biome if self.zoo else None
@@ -200,7 +227,8 @@ class Player:
         """Add an animal to the player's zoo."""
         if self.zoo and self.zoo.can_add_animal(animal):
             self.zoo.add_animal(animal.id)
-            animal.owner = self.id
+            self.owned_animals.append(animal.id)
+            animal.set_owner(self.id)
             return True
         return False
     
@@ -233,9 +261,11 @@ class Player:
             'name': self.name,
             'money': self.money,
             'zoo_id': self.zoo.id if self.zoo else None,
+            'zoo': self.zoo.to_dict() if self.zoo else None,
             'owned_animals': self.owned_animals.copy(),
             'is_active': self.is_active,
-            'is_human': self.is_human
+            'is_human': self.is_human,
+            'pending_bids': self.pending_bids.copy()
         }
 
 class AuctionManager:
@@ -317,13 +347,25 @@ class AuctionManager:
         if not animal or animal not in self.current_animals:
             return {'success': False, 'message': 'Animal not in current auction'}
         
-        # Check if player has enough money
-        if player.money < bid_amount:
-            return {'success': False, 'message': 'Insufficient funds'}
+        # Check if player can afford the bid considering pending bids
+        if not player.can_afford_bid(bid_amount, animal_id):
+            return {'success': False, 'message': 'Insufficient funds considering your pending bids'}
         
-        # Check if player can bid on this tier
-        if not player.can_bid_on_tier(animal.tier):
-            return {'success': False, 'message': f'You have reached the limit for Tier {animal.tier} animals'}
+        # Check on how many animals player is leading
+        leading_count = 0
+        for aid, bids in self.animal_bids.items():
+            if bids and aid != animal_id:  # Don't count the current animal
+                highest_bid = max(bids, key=lambda x: x[0])
+                if highest_bid[1] == player_id:
+                # Check if this animal is same tier
+                    other_animal = self.game_state.animal_database.get(aid)
+                    if other_animal and other_animal.tier == animal.tier:
+                        leading_count += 1
+
+        # Checking against tier limit
+        tier_limit = TIER_LIMITS.get(animal.tier, float('inf'))
+        if leading_count >= tier_limit:
+            return {'success': False, 'message': f'You are already leading bids for {tier_limit} Tier {animal.tier} animals (the maximum allowed)'}
         
         # Get current highest bid
         current_bids = self.animal_bids[animal_id]
@@ -334,6 +376,9 @@ class AuctionManager:
         
         if bid_amount < min_bid:
             return {'success': False, 'message': f'Bid must be at least {min_bid}'}
+
+        # Add to pending bids
+        player.update_pending_bid(animal_id, bid_amount)
         
         # Add the bid
         self.animal_bids[animal_id].append((bid_amount, player_id))
@@ -341,10 +386,13 @@ class AuctionManager:
         # Notify all clients of the bid update
         if self.socketio_callback:
             highest_bid = max(self.animal_bids[animal_id], key=lambda x: x[0])
+            highest_bidder = self.game_state.get_player_by_id(highest_bid[1])
+            highest_bidder_name = highest_bidder.name if highest_bidder else 'Unknown'
+
             self.socketio_callback('bid_update', {
                 'animal_id': animal_id,
                 'highest_bid': highest_bid[0],
-                'highest_bidder': self.game_state.get_player_by_id(highest_bid[1]).name,
+                'highest_bidder': highest_bidder_name,
                 'bid_count': len(self.animal_bids[animal_id])
             })
         
@@ -392,13 +440,15 @@ class AuctionManager:
                 # Transfer animal to winner
                 winner.spend_money(winning_bid)
                 winner.add_animal_to_zoo(animal)
+                winner.clear_pending_bid(animal_id)
+
                 tier_results[animal_id] = {
                     'winner': winner.name,
                     'winner_id': winner.id,
                     'winning_bid': winning_bid,
                     'animal': animal.to_dict()
                 }
-                print(f"Animal {animal.animal_id} ({animal.name}) acquired by {winner.name} for {winning_bid} coins")
+                print(f"Animal {animal.id} ({animal.name}) acquired by {winner.name} for {winning_bid} coins")
             else:
                 # No valid winner
                 tier_results[animal_id] = {
@@ -406,6 +456,10 @@ class AuctionManager:
                     'winning_bid': 0,
                     'animal': animal.to_dict()
                 }
+            
+        # Clear all pending bids after auction ends
+        for player in self.game_state.players:
+            player.clear_all_pending_bids()
         
         self.auction_results[self.current_tier] = tier_results
         
@@ -415,14 +469,37 @@ class AuctionManager:
                 'tier': self.current_tier,
                 'results': tier_results
             })
+            self.socketio_callback('game_state_update', self.game_state.get_game_state_dict())
         
         # Move to next tier or end auction
-        if self.current_tier < 4:
+        if self.current_tier >= 4:
             # Wait a bit before starting next tier
-            threading.Timer(5.0, lambda: self.start_tier_auction(self.current_tier + 1)).start()
-        else:
+            # threading.Timer(5.0, lambda: self.start_tier_auction(self.current_tier + 1)).start()
+        # else:
             print("All auction rounds completed!")
             self.game_state.start_scoring_phase()
+        
+    def stop_current_auction(self):
+        """Forcefully stops the current auction."""
+        if not self.auction_active:
+            return
+
+        print("Admin is stopping the current auction.")
+        self.auction_active = False
+        # The timer thread will see auction_active is False and will exit its loop.
+        
+        self.current_animals = []
+        self.animal_bids.clear()
+
+        # Clear all pending bids
+        for player in self.game_state.players:
+            player.clear_all_pending_bids()
+        
+        if self.socketio_callback:
+            self.socketio_callback('auction_stopped', {
+                'message': 'The auction was stopped by the administrator.'
+            })
+            self.socketio_callback('game_state_update', self.game_state.get_game_state_dict())
     
     def get_current_highest_bids(self):
         """Get current highest bids for all animals in current auction."""
@@ -476,46 +553,19 @@ class GameState:
         for animal_id, animal_dict in animal_data.items():
             self.animal_database[animal_id] = Animal(animal_dict)
     
-    def initialize_players(self, num_players=25, csv_path=None):
+    def initialize_players(self, num_players=25):
         """Initialize AI players for the game."""
-        if csv_path and os.path.exists(csv_path):
-        # Load from CSV
-            with open(csv_path, newline='', encoding='utf-8') as csvfile:
-                reader = csv.DictReader(csvfile)
-                for i, row in enumerate(reader):
-                    if i >= num_players:
-                        break
-                    player_id = f"player_{i+1}"
-                    player_name = row.get("name",'').strip()
-                    zoo_id = row.get("zoo_id",'0000').strip()
+        zoo_ids = list(self.available_zoos.keys())
 
-                    if zoo_id not in self.available_zoos:
-                        print(f"Warning: Zoo ID '{zoo_id}' not found or already assigned.")
-                        continue
-
-                    zoo = self.available_zoos[zoo_id]
-                    player = Player(player_id, player_name, zoo, money=1000)
-                    self.add_player(player)
-                    del self.available_zoos[zoo_id]
-        else:
-            # Default random assignment
-            player_names = [
-                "Albert", "Bear", "Carl", "Donald", "Elon", "Farzi", "Greta", "Henry",
-                "Isaac", "Jay", "Kim", "Lalit", "Mark", "Nat", "Oppy", "Pablo",
-                "Quinton", "Rowan", "Sydney", "Tim", "Ugly", "Viv", "Walt", "Xander", "Yann"
-            ]
+        for i in range(min(num_players, len(zoo_ids))):
+            zoo_id = zoo_ids[i]
+            zoo = self.available_zoos[zoo_ids[i]]
+            player_id = zoo.id
+            player_name = str(zoo.id)
             
-            zoo_ids = list(self.available_zoos.keys())
-            random.shuffle(zoo_ids)
-
-            for i in range(min(num_players, len(zoo_ids), len(player_names))):
-                player_id = f"player_{i+1}"
-                player_name = player_names[i]
-                zoo = self.available_zoos[zoo_ids[i]]
-
-                player = Player(player_id, player_name, zoo, money=100)
-                self.add_player(player)
-                del self.available_zoos[zoo_ids[i]]
+            player = Player(player_id, player_name, zoo, money=100)
+            self.add_player(player)
+            del self.available_zoos[zoo_ids[i]]
 
     def add_player(self, player: Player):
         """Add a player to the game."""
@@ -583,31 +633,6 @@ class GameState:
                 'highest_bids': self.auction_manager.get_current_highest_bids()
             } if self.current_phase == "auction" else None,
             'available_zoos': [zoo.to_dict() for zoo in self.available_zoos.values()],
-            'total_animals': len(self.animal_database)
+            'total_animals': len(self.animal_database),
+            'animal_database': {aid: animal.to_dict() for aid, animal in self.animal_database.items()}
         }
-
-# if __name__ == "__main__":
-#     def mock_socketio_callback(event, data):
-#         print(f"SocketIO Event: {event}")
-#         print(f"Data: {json.dumps(data, indent=2)}")
-    
-#     # Initialize game
-#     game = GameState(socketio_callback=mock_socketio_callback)
-    
-#     print(f"Game initialized with {len(game.players)} players")
-#     print(f"Available animals: {len(game.animal_database)}")
-    
-#     # Start auction
-#     game.start_auction_phase()
-    
-#     # Simulate some bids
-#     tier1_animals = game.get_animals_by_tier(1)
-#     if tier1_animals:
-#         animal = tier1_animals[0]
-#         player = game.players[0]
-#         result = game.auction_manager.submit_bid(player.id, animal.id, animal.base_price + 10)
-#         print(f"Bid result: {result}")
-
-#     # Let the auction run for a bit
-#     time.sleep(122)
-#     print("Game simulation complete")
