@@ -69,7 +69,7 @@ def admin_dashboard():
     """Renders the admin dashboard."""
     if session.get('user_type') != 'admin':
         return redirect(url_for('login_page'))
-    return render_template('admin4.html')
+    return render_template('admin.html')
 
 @app.route('/api/admin/game/initialize', methods=['POST'])
 def initialize_game():
@@ -151,7 +151,7 @@ def player_view():
     """Renders the player's game view."""
     if session.get('user_type') != 'player':
         return redirect(url_for('login_page'))
-    return render_template('player5.html', username=session.get('username'))
+    return render_template('player.html', username=session.get('username'))
 
 
 # =========== Shared API Routes ===========
