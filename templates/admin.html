@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Fauna Fantastico</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e8ba3 100%);
+            color: #1c1e21;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Animated background elements */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="%23ffffff" fill-opacity="0.05" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,154.7C960,171,1056,181,1152,165.3C1248,149,1344,107,1392,85.3L1440,64L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') no-repeat bottom;
+            background-size: cover;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header Styles */
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            padding: 25px 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            margin-bottom: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transform: rotate(45deg);
+            animation: shimmer 3s infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                transform: translateX(-100%) translateY(-100%) rotate(45deg);
+            }
+
+            100% {
+                transform: translateX(100%) translateY(100%) rotate(45deg);
+            }
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header h1 {
+            color: #1e293b;
+            font-size: 2rem;
+            font-weight: 700;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .header h1 i {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 1.75rem;
+        }
+
+        .game-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            margin-top: 10px;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: white;
+            animation: pulse 2s infinite;
+        }
+
+        .logout-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.9em;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .logout-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);
+        }
+
+        /* Status Message */
+        .status-message {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            padding: 18px 24px;
+            border-radius: 16px;
+            color: white;
+            z-index: 1000;
+            display: none;
+            font-weight: 500;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            font-size: 1.05em;
+        }
+
+        .status-message.show {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(120%) scale(0.8);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0) scale(1);
+                opacity: 1;
+            }
+        }
+
+        .status-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .status-error {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .status-info {
+            background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        /* Controls Section */
+        .controls-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            margin-bottom: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .controls-section h3 {
+            color: #1e293b;
+            font-size: 1.3em;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            position: relative;
+            padding-bottom: 15px;
+        }
+
+        .controls-section h3::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 50px;
+            height: 3px;
+            background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
+            border-radius: 2px;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn:before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover:before {
+            left: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.4);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4);
+        }
+
+        .btn:disabled {
+            background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+            opacity: 0.7;
+        }
+
+        .btn:disabled:before {
+            display: none;
+        }
+
+        /* Auction Status */
+        .auction-status {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            padding: 30px;
+            border-radius: 20px;
+            margin-bottom: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .auction-timer {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1e293b;
+            text-align: center;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+        }
+
+        .auction-timer.warning {
+            color: #f59e0b;
+        }
+
+        .auction-timer.critical {
+            color: #dc2626;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.05);
+                opacity: 0.8;
+            }
+        }
+
+        .auction-info {
+            text-align: center;
+            font-size: 1.1rem;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        /* Main Content Grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 25px;
+            margin-bottom: 25px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            height: fit-content;
+        }
+
+        .card h3 {
+            color: #1e293b;
+            font-size: 1.3em;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding-bottom: 15px;
+            position: relative;
+        }
+
+        .card h3::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 50px;
+            height: 3px;
+            background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
+            border-radius: 2px;
+        }
+
+        .card h3 i {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Player List */
+        .player-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .player-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border-radius: 12px;
+            border-left: 4px solid #3b82f6;
+            transition: all 0.3s ease;
+        }
+
+        .player-item:hover {
+            box-shadow: 0 5px 15px rgba(59, 130, 246, 0.2);
+        }
+
+        .player-name {
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .player-stats {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        /* Auction Animals Grid */
+        .auction-animals {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 25px;
+        }
+
+        .animal-item-admin {
+            padding: 20px;
+            border-radius: 20px;
+            transition: all 0.4s ease;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            border: 2px solid transparent;
+            background: white;
+        }
+
+        .animal-item-admin:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .animal-tier {
+            display: inline-block;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .animal-name {
+            font-size: 1.3em;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+        }
+
+        .animal-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+            margin: 0.75rem 0;
+            font-size: 0.875rem;
+        }
+
+        .animal-detail {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #64748b;
+        }
+
+        .animal-detail i {
+            color: #3b82f6;
+            width: 14px;
+        }
+
+        .bid-info {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .current-bid {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #10b981;
+            text-align: center;
+        }
+
+        .bidder-name {
+            text-align: center;
+            font-size: 0.875rem;
+            color: #64748b;
+            margin-top: 0.25rem;
+        }
+
+        /* Game State */
+        .game-state-card {
+            grid-column: 1 / -1;
+        }
+
+        .game-state {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.875rem;
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 1.5rem;
+            border-radius: 12px;
+            max-height: 600px;
+            overflow-y: auto;
+            white-space: pre;
+            line-height: 1.5;
+        }
+
+        /* Empty States */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #64748b;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1rem;
+        }
+
+        .empty-state h4 {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            color: #1e293b;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%);
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .controls {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .header-content {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .auction-timer {
+                font-size: 1.5rem;
+            }
+
+            .controls {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <div>
+                    <h1><i class="fas fa-crown"></i>Admin Dashboard</h1>
+                    <div class="game-status">
+                        <div class="status-indicator"></div>
+                        <span id="gamePhase">Game Status: Not Initialized</span>
+                    </div>
+                </div>
+                <a href="/logout" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    Logout
+                </a>
+            </div>
+        </div>
+
+        <div id="statusMessage" class="status-message">
+            <i class="fas fa-info-circle"></i>
+            <span></span>
+        </div>
+
+        <div class="controls-section">
+            <h3><i class="fas fa-gamepad"></i>Game Controls</h3>
+            <div class="controls">
+                <button id="initGameBtn" class="btn btn-primary">
+                    <i class="fas fa-play"></i>Initialize Game
+                </button>
+                <button id="startTier1Btn" class="btn btn-primary" disabled>
+                    Start Tier 1 Auction
+                </button>
+                <button id="startTier2Btn" class="btn btn-primary" disabled>
+                    Start Tier 2 Auction
+                </button>
+                <button id="startTier3Btn" class="btn btn-primary" disabled>
+                    Start Tier 3 Auction
+                </button>
+                <button id="startTier4Btn" class="btn btn-primary" disabled>
+                    Start Tier 4 Auction
+                </button>
+                <button id="stopAuctionBtn" class="btn btn-danger" disabled>
+                    <i class="fas fa-stop"></i>Stop Current Auction
+                </button>
+            </div>
+        </div>
+
+        <div class="auction-status">
+            <div class="auction-status-content">
+                <div id="auctionTimer" class="auction-timer">
+                    <i class="fas fa-clock"></i>
+                    <span>No active auction</span>
+                </div>
+                <div id="auctionInfo" class="auction-info"></div>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <div class="card">
+                <h3><i class="fas fa-users"></i>Players</h3>
+                <div id="playerList" class="player-list">
+                    <div class="empty-state">
+                        <i class="fas fa-user-friends"></i>
+                        <h4>No Players Yet</h4>
+                        <p>Players will appear here once they join the game</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3><i class="fas fa-paw"></i>Current Auction Animals</h3>
+                <div id="currentAuction" class="auction-animals">
+                    <div class="empty-state">
+                        <i class="fas fa-gavel"></i>
+                        <h4>No Active Auction</h4>
+                        <p>Start an auction to see animals here</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card game-state-card">
+            <h3><i class="fas fa-code"></i>Full Game State</h3>
+            <div id="gameState" class="game-state">Game not started.</div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let gameInitialized = false;
+        let currentAuctionActive = false;
+        let timerInterval = null;
+        let currentTimeRemaining = 0;
+        let currentTier = null;
+
+        // Initialize game
+        document.getElementById('initGameBtn').addEventListener('click', () => {
+            showStatus('Initializing game...', 'info');
+            fetch('/api/admin/game/initialize', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showStatus('Game initialized successfully!', 'success');
+                        gameInitialized = true;
+                        updateButtonStates();
+                    } else {
+                        showStatus('Failed to initialize game: ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    showStatus('Error initializing game: ' + error.message, 'error');
+                });
+        });
+
+        // Start tier auctions
+        [1, 2, 3, 4].forEach(tier => {
+            document.getElementById(`startTier${tier}Btn`).addEventListener('click', () => {
+                showStatus(`Starting Tier ${tier} auction...`, 'info');
+                fetch('/api/admin/game/start_auction_tier', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tier: tier })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showStatus(`Tier ${tier} auction started successfully!`, 'success');
+                            currentAuctionActive = true;
+                            updateButtonStates();
+                        } else {
+                            showStatus('Failed to start auction: ' + data.message, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        showStatus('Error starting auction: ' + error.message, 'error');
+                    });
+            });
+        });
+
+        // Stop auction
+        document.getElementById('stopAuctionBtn').addEventListener('click', () => {
+            if (confirm('Are you sure you want to stop the current auction?')) {
+                showStatus('Stopping auction...', 'info');
+                fetch('/api/admin/game/stop_auction', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showStatus('Auction stopped successfully!', 'success');
+                            currentAuctionActive = false;
+                            updateButtonStates();
+                        } else {
+                            showStatus('Failed to stop auction: ' + data.message, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        showStatus('Error stopping auction: ' + error.message, 'error');
+                    });
+            }
+        });
+
+        // Socket event handlers
+        socket.on('connect', () => {
+            console.log('Admin connected to server');
+        });
+
+        socket.on('game_state_update', (state) => {
+            console.log('Received game state update:', state);
+            updateGameState(state);
+        });
+
+        socket.on('auction_timer_update', (data) => {
+            console.log('Timer update received:', data);
+
+            if (data.time_remaining > 0) {
+                currentTimeRemaining = data.time_remaining;
+                currentTier = data.tier;
+                document.getElementById('auctionInfo').textContent = `Active auction for Tier ${data.tier} animals`;
+                currentAuctionActive = true;
+
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                }
+
+                timerInterval = setInterval(() => {
+                    updateTimerDisplay();
+                }, 1000);
+
+                updateTimerDisplay();
+            } else {
+                const timerEl = document.getElementById('auctionTimer');
+                timerEl.innerHTML = '<i class="fas fa-clock"></i><span>Auction Time Expired</span>';
+                timerEl.className = 'auction-timer critical';
+                document.getElementById('auctionInfo').textContent = 'Auction has ended';
+
+                // Auto-stop the auction when time expires
+                if (currentAuctionActive) {
+                    setTimeout(() => {
+                        fetch('/api/admin/game/stop_auction', { method: 'POST' })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    showStatus('Auction ended and animals assigned to winning bidders!', 'success');
+                                    currentAuctionActive = false;
+                                    updateButtonStates();
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error auto-stopping auction:', error);
+                            });
+                    }, 1000);
+                }
+            }
+            updateButtonStates();
+        });
+
+        function updateTimerDisplay() {
+            const timerEl = document.getElementById('auctionTimer');
+
+            if (currentTimeRemaining > 0) {
+                const minutes = Math.floor(currentTimeRemaining / 60);
+                const seconds = currentTimeRemaining % 60;
+                const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                timerEl.innerHTML = `<i class="fas fa-clock"></i><span>Tier ${currentTier} Auction - ${timeString}</span>`;
+
+                timerEl.className = 'auction-timer';
+                if (currentTimeRemaining <= 10) {
+                    timerEl.classList.add('critical');
+                } else if (currentTimeRemaining <= 30) {
+                    timerEl.classList.add('warning');
+                }
+
+                currentTimeRemaining--;
+            } else {
+                timerEl.innerHTML = '<i class="fas fa-clock"></i><span>Auction Time Expired</span>';
+                timerEl.className = 'auction-timer critical';
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        socket.on('auction_round_end', (data) => {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+
+            const timerEl = document.getElementById('auctionTimer');
+            const infoEl = document.getElementById('auctionInfo');
+            timerEl.innerHTML = `<i class="fas fa-check-circle"></i><span>Tier ${data.tier} Auction Ended</span>`;
+            timerEl.className = 'auction-timer';
+            infoEl.textContent = 'Auction has completed';
+            showStatus(`Tier ${data.tier} auction has ended!`, 'success');
+            currentAuctionActive = false;
+            updateButtonStates();
+        });
+
+        socket.on('auction_stopped', (data) => {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+
+            showStatus(data.message, 'success');
+            const timerEl = document.getElementById('auctionTimer');
+            timerEl.innerHTML = '<i class="fas fa-stop-circle"></i><span>Auction Stopped</span>';
+            timerEl.className = 'auction-timer';
+            document.getElementById('auctionInfo').textContent = 'Auction was stopped by admin';
+            currentAuctionActive = false;
+            updateButtonStates();
+        });
+
+        socket.on('bid_update', (data) => {
+            console.log('Bid update received:', data);
+            showStatus(`New bid: ${data.highest_bid} by ${data.highest_bidder}`, 'info');
+        });
+
+        function updateGameState(state) {
+            document.getElementById('gamePhase').innerHTML = `Game Phase: ${state.phase}`;
+
+            const playerListEl = document.getElementById('playerList');
+            if (state.players && state.players.length > 0) {
+                playerListEl.innerHTML = '';
+                state.players.forEach(p => {
+                    const playerDiv = document.createElement('div');
+                    playerDiv.className = 'player-item';
+                    playerDiv.innerHTML = `
+                        <div class="player-name">${p.name}</div>
+                        <div class="player-stats">
+                            <div class="stat-item">
+                                <i class="fas fa-dollar-sign"></i>
+                                <span>${p.money}</span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-home"></i>
+                                <span>${p.zoo_id || 'No Zoo'}</span>
+                            </div>
+                        </div>
+                    `;
+                    playerListEl.appendChild(playerDiv);
+                });
+            } else {
+                playerListEl.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-user-friends"></i>
+                        <h4>No Players Yet</h4>
+                        <p>Players will appear here once they join the game</p>
+                    </div>
+                `;
+            }
+
+            const currentAuctionEl = document.getElementById('currentAuction');
+            // Update auction area
+            if (state.phase === 'auction' && state.auction && state.auction.current_animals && state.auction.current_animals.length > 0) {
+                currentAuctionEl.innerHTML = '';
+
+                // Start timer if we have time remaining
+                if (state.auction.time_remaining && state.auction.time_remaining > 0) {
+                    currentTimeRemaining = state.auction.time_remaining;
+                    currentTier = state.auction.current_tier;
+
+                    if (timerInterval) {
+                        clearInterval(timerInterval);
+                    }
+
+                    timerInterval = setInterval(() => {
+                        updateTimerDisplay();
+                    }, 1000);
+
+                    updateTimerDisplay();
+                }
+
+                state.auction.current_animals.forEach(animal => {
+                    const bidInfo = state.auction.highest_bids[animal.id] || {};
+                    const currentBid = bidInfo.amount || animal.base_price;
+                    const bidderName = bidInfo.bidder || 'No Bids';
+
+                    const animalDiv = document.createElement('div');
+                    animalDiv.className = `animal-item-admin biome-${animal.biome}`;
+
+                    animalDiv.innerHTML = `
+                        <div class="animal-tier">Tier ${animal.tier}</div>
+                        <div class="animal-name">${animal.name || 'Unnamed Animal'}</div>
+                        <div class="animal-details">
+                            <div class="animal-detail">
+                                <i class="fas fa-tree"></i>
+                                <span>${animal.biome}</span>
+                            </div>
+                            <div class="animal-detail">
+                                <i class="fas fa-tag"></i>
+                                <span>ID: ${animal.id}</span>
+                            </div>
+                            <div class="animal-detail">
+                                <i class="fas fa-coins"></i>
+                                <span>Base: ${animal.base_price}</span>
+                            </div>
+                        </div>
+                        <div class="bid-info">
+                            <div class="current-bid">${currentBid}</div>
+                            <div class="bidder-name">${bidderName}</div>
+                        </div>
+                    `;
+                    currentAuctionEl.appendChild(animalDiv);
+                });
+                currentAuctionActive = true;
+            } else {
+                currentAuctionEl.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-gavel"></i>
+                        <h4>No Active Auction</h4>
+                        <p>Start an auction to see animals here</p>
+                    </div>
+                `;
+                currentAuctionActive = false;
+            }
+
+            document.getElementById('gameState').textContent = JSON.stringify(state, null, 2);
+
+            gameInitialized = true;
+            updateButtonStates();
+        }
+
+        function updateButtonStates() {
+            const tierButtons = [1, 2, 3, 4].map(tier => document.getElementById(`startTier${tier}Btn`));
+            const stopButton = document.getElementById('stopAuctionBtn');
+            const initButton = document.getElementById('initGameBtn');
+
+            if (!gameInitialized) {
+                tierButtons.forEach(btn => btn.disabled = true);
+                stopButton.disabled = true;
+                initButton.disabled = false;
+            } else {
+                tierButtons.forEach(btn => btn.disabled = currentAuctionActive);
+                stopButton.disabled = !currentAuctionActive;
+                initButton.disabled = true;
+            }
+        }
+
+        function showStatus(message, type) {
+            const statusEl = document.getElementById('statusMessage');
+            const messageSpan = statusEl.querySelector('span');
+            const icon = statusEl.querySelector('i');
+
+            messageSpan.textContent = message;
+            statusEl.className = `status-message status-${type} show`;
+
+            // Update icon based on type
+            icon.className = type === 'success' ? 'fas fa-check-circle' :
+                type === 'error' ? 'fas fa-exclamation-triangle' :
+                    'fas fa-info-circle';
+
+            setTimeout(() => {
+                statusEl.classList.remove('show');
+            }, 5000);
+        }
+
+        window.addEventListener('beforeunload', () => {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+        });
+
+        updateButtonStates();
+    </script>
+</body>
+
+</html>

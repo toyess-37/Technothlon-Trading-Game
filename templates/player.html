@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fauna Fantastico - Player View</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e8ba3 100%);
+            color: #1c1e21;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Animated background elements */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="%23ffffff" fill-opacity="0.05" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,154.7C960,171,1056,181,1152,165.3C1248,149,1344,107,1392,85.3L1440,64L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') no-repeat bottom;
+            background-size: cover;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            padding: 25px 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transform: rotate(45deg);
+            animation: shimmer 3s infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                transform: translateX(-100%) translateY(-100%) rotate(45deg);
+            }
+
+            100% {
+                transform: translateX(100%) translateY(100%) rotate(45deg);
+            }
+        }
+
+        .header-info span {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.95em;
+            color: #64748b;
+        }
+
+        .header-info strong {
+            font-size: 1.5em;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 700;
+        }
+
+        .money-display {
+            display: inline-flex;
+            align-items: center;
+            /* background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); */
+            color: white;
+            /* padding: 5px 15px; */
+            /* border-radius: 20px; */
+            font-weight: 600;
+            margin-top: 5px;
+            /* box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3); */
+        }
+
+        .header-status {
+            text-align: right;
+            position: relative;
+            z-index: 1;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 25px;
+        }
+
+        .sidebar,
+        .auction-area {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            position: relative;
+        }
+
+        h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            color: #1e293b;
+            font-size: 1.3em;
+            position: relative;
+        }
+
+        h3::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 50px;
+            height: 3px;
+            background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
+            border-radius: 2px;
+        }
+
+        .my-animals-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .animal-item {
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 1px solid #bae6fd;
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 0.95em;
+            transition: all 0.3s ease;
+            cursor: default;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .animal-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.1), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .animal-item:hover::before {
+            left: 100%;
+        }
+
+        .animal-item:hover {
+            box-shadow: 0 5px 15px rgba(59, 130, 246, 0.2);
+        }
+
+        .auction-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 25px;
+        }
+
+        .animal-card {
+            border: 2px solid transparent;
+            padding: 20px;
+            border-radius: 20px;
+            transition: all 0.4s ease;
+            background: white;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .animal-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: inherit;
+            filter: blur(20px);
+            opacity: 0.4;
+            z-index: -1;
+        }
+
+        /* Enhanced biome-specific gradients */
+        .animal-card.biome-Forest {
+            background: linear-gradient(135deg, #065f46 0%, #047857 50%, #10b981 100%);
+            color: white;
+            border-color: #064e3b;
+        }
+
+        .animal-card.biome-Grassland {
+            background: linear-gradient(135deg, #713f12 0%, #92400e 50%, #ea580c 100%);
+            color: white;
+            border-color: #7c2d12;
+        }
+
+        .animal-card.biome-Desert {
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+            color: white;
+            border-color: #b45309;
+        }
+
+        .animal-card.biome-Tundra {
+            background: linear-gradient(135deg, #0891b2 0%, #06b6d4 50%, #38bdf8 100%);
+            color: white;
+            border-color: #0e7490;
+        }
+
+        .animal-card.biome-Aquatic {
+            background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #60a5fa 100%);
+            color: white;
+            border-color: #1e3a8a;
+        }
+
+        .animal-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .animal-card.is-leader {
+            transform: scale(1.05);
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3);
+            border: 3px solid rgba(255, 255, 255, 0.5);
+            animation: pulse-glow 2s infinite;
+        }
+
+        @keyframes pulse-glow {
+
+            0%,
+            100% {
+                box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3), 0 0 30px rgba(255, 255, 255, 0.5);
+            }
+
+            50% {
+                box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3), 0 0 50px rgba(255, 255, 255, 0.7);
+            }
+        }
+
+        .animal-card h4 {
+            margin: 0 0 15px 0;
+            font-size: 1.3em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+            font-weight: 700;
+        }
+
+        .animal-card p {
+            margin: 8px 0;
+            font-size: 0.95em;
+            opacity: 0.95;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .animal-card p strong {
+            font-weight: 600;
+            opacity: 1;
+        }
+
+        .bid-form {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .bid-input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #1e293b;
+            font-weight: 500;
+            font-size: 1em;
+            transition: all 0.3s ease;
+        }
+
+        .bid-input:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.2);
+            background: white;
+        }
+
+        .bid-btn {
+            padding: 12px 24px;
+            border: none;
+            background: rgba(255, 255, 255, 0.9);
+            color: #1e293b;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 1em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .bid-btn:hover:not(:disabled) {
+            background: white;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .bid-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .bid-btn:disabled {
+            background: rgba(255, 255, 255, 0.5);
+            cursor: not-allowed;
+            color: #64748b;
+            opacity: 0.7;
+        }
+
+        .status-message {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            padding: 18px 24px;
+            border-radius: 16px;
+            color: white;
+            z-index: 1000;
+            display: none;
+            font-weight: 500;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            font-size: 1.05em;
+        }
+
+        .status-message.show {
+            display: block;
+            animation: slideIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(120%) scale(0.8);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0) scale(1);
+                opacity: 1;
+            }
+        }
+
+        .status-message.success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .status-message.error {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .status-message.info {
+            background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .auction-timer {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #059669;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+            display: inline-block;
+            padding: 8px 16px;
+            background: rgba(16, 185, 129, 0.1);
+            border-radius: 12px;
+            margin-top: 5px;
+        }
+
+        .auction-timer.warning {
+            color: #dc2626;
+            background: rgba(220, 38, 38, 0.1);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.05);
+                opacity: 0.8;
+            }
+        }
+
+        .logout-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.9em;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .logout-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);
+        }
+
+        /* Pending bids tracker */
+        .pending-bids {
+            background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%);
+            border: 1px solid #fbbf24;
+            padding: 10px 15px;
+            border-radius: 12px;
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #92400e;
+            display: none;
+        }
+
+        .pending-bids.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%);
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+        }
+
+        .bid-alert {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            padding: 25px 35px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            z-index: 2000;
+            display: none;
+            font-weight: 600;
+            font-size: 1.1em;
+            text-align: center;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            max-width: 400px;
+            animation: popIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+        }
+
+        .bid-alert.show {
+            display: block;
+        }
+
+        .bid-alert h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.3em;
+            color: white;
+        }
+
+        .bid-alert p {
+            margin: 0 0 15px 0;
+            opacity: 0.95;
+        }
+
+        .bid-alert button {
+            background: rgba(255, 255, 255, 0.9);
+            color: #dc2626;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .bid-alert button:hover {
+            background: white;
+            transform: scale(1.05);
+        }
+
+        @keyframes popIn {
+            0% {
+                transform: translate(-50%, -50%) scale(0.8);
+                opacity: 0;
+            }
+
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* Overlay for alert */
+        .alert-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1999;
+            display: none;
+            backdrop-filter: blur(5px);
+        }
+
+        .alert-overlay.show {
+            display: block;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                flex-direction: column;
+                text-align: center;
+                gap: 15px;
+            }
+
+            .header-status {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-info">
+                <strong id="playerName">Welcome, {{ username }}!</strong>
+                <span id="playerMoney" class="money-display">Money: 100 coins</span>
+                <span id="playerZoo">Zoo: {{ username }}</span>
+                <div id="pendingBids" class="pending-bids">
+                    Pending bids: <span id="pendingAmount">0</span>
+                </div>
+            </div>
+            <div class="header-status">
+                <span id="gamePhase">Phase: --</span>
+                <span id="auctionTimer" class="auction-timer"></span>
+            </div>
+            <a href="/logout" class="logout-btn">Logout</a>
+        </header>
+
+        <div class="main-content">
+            <div class="sidebar">
+                <h3>My Collection</h3>
+                <ul id="myAnimalsList" class="my-animals-list">
+                    <li class="animal-item">No animals yet. Start bidding to build your collection!</li>
+                </ul>
+            </div>
+            <div class="auction-area">
+                <h3 id="auctionTitle">Live Auction</h3>
+                <div id="auctionContent" class="auction-grid">
+                    <p style="text-align: center; color: #64748b; font-size: 1.1em;">
+                        Waiting for auction to start...<br>
+                        <span style="font-size: 0.9em;">Get ready to bid on amazing animals!</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="statusMessage" class="status-message"></div>
+
+    <script>
+        const socket = io();
+        const username = "{{ username }}";
+        let currentPlayer = null;
+        let timerInterval = null;
+        let pendingBids = {}; // Track pending bids {animalId: amount}
+        let alertQueue = []; // Queue for multiple alerts
+        let isAlertShowing = false;
+
+        // --- Socket Listeners ---
+        socket.on('connect', () => {
+            console.log('Connected to server.');
+            showStatus('Connected', 'success');
+        });
+
+        socket.on('disconnect', () => showStatus('Disconnected', 'error'));
+        socket.on('game_state_update', updateUI);
+        socket.on('bid_update', updateAnimalBid);
+        socket.on('bid_result', (result) => {
+            showStatus(result.message, result.success ? 'success' : 'error');
+            // Re-enable all bid buttons
+            document.querySelectorAll('.bid-btn').forEach(btn => {
+                btn.disabled = false;
+                btn.textContent = 'BID';
+            });
+            // Update UI to reflect new game state
+            if (result.success) {
+                // Request fresh game state
+                socket.emit('request_game_state');
+            }
+        });
+        socket.on('auction_round_start', (data) => {
+            showStatus(`Tier ${data.tier} auction has begun!`, 'info');
+            startTimer(data.duration || 120);
+            // Clear pending bids for new round
+            pendingBids = {};
+            leadingBids = {};
+            alertQueue = [];
+            updatePendingBidsDisplay();
+            refreshAllBidInputs();
+        });
+        socket.on('auction_round_end', (data) => {
+            showStatus(`Tier ${data.tier} auction completed!`, 'info');
+            stopTimer();
+            // Clear pending bids after auction ends
+            pendingBids = {};
+            leadingBids = {};
+            alertQueue = [];
+            updatePendingBidsDisplay();
+            refreshAllBidInputs();
+        });
+
+        socket.on('auction_timer_update', updateTimer);
+
+        socket.on('auction_stopped', (data) => {
+            showStatus(`⚠️ ${data.message}`, 'info');
+            stopTimer();
+            pendingBids = {};
+            leadingBids = {};
+            alertQueue = [];
+            updatePendingBidsDisplay();
+            refreshAllBidInputs();
+        });
+
+        // --- Timer Functions ---
+        function startTimer(duration) {
+            stopTimer(); // Clear any existing timer
+            let timeRemaining = duration;
+
+            timerInterval = setInterval(() => {
+                if (timeRemaining <= 0) {
+                    stopTimer();
+                    return;
+                }
+
+                updateTimerDisplay(timeRemaining);
+                timeRemaining--;
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function updateTimerDisplay(timeRemaining) {
+            const timerEl = document.getElementById('auctionTimer');
+            if (timeRemaining > 0) {
+                const minutes = Math.floor(timeRemaining / 60);
+                const seconds = (timeRemaining % 60).toString().padStart(2, '0');
+                timerEl.textContent = `${minutes}:${seconds}`;
+                timerEl.classList.toggle('warning', timeRemaining <= 30);
+            } else {
+                timerEl.textContent = 'Time\'s Up!';
+                timerEl.classList.remove('warning');
+            }
+        }
+
+        function showBidAlert(animalName, animalId, newBidder, newAmount) {
+            const alertData = {
+                message: `You've been outbid on ${animalName} (#${animalId})!\n${newBidder} bid $${newAmount}`,
+                animalName,
+                animalId,
+                newBidder,
+                newAmount
+            };
+
+            alertQueue.push(alertData);
+            processAlertQueue();
+        }
+
+        function processAlertQueue() {
+            if (isAlertShowing || alertQueue.length === 0) return;
+
+            isAlertShowing = true;
+            const alert = alertQueue.shift();
+
+            document.getElementById('bidAlertMessage').innerHTML = alert.message.replace('\n', '<br>');
+            document.getElementById('alertOverlay').classList.add('show');
+            document.getElementById('bidAlert').classList.add('show');
+        }
+
+        function closeBidAlert() {
+            document.getElementById('alertOverlay').classList.remove('show');
+            document.getElementById('bidAlert').classList.remove('show');
+            isAlertShowing = false;
+
+            // Process next alert if any
+            setTimeout(() => {
+                processAlertQueue();
+            }, 300);
+        }
+
+
+
+        // --- UI Update Functions ---
+        function updateUI(state) {
+            if (!state || !state.players) return;
+
+            currentPlayer = state.players.find(p => p.name === username);
+
+            // Update Header
+            if (currentPlayer) {
+                document.getElementById('playerName').textContent = `Welcome, ${currentPlayer.name}!`;
+                document.getElementById('playerMoney').textContent = `Money: ${currentPlayer.money} coins`;
+                document.getElementById('playerZoo').textContent = `Zoo: ${currentPlayer.zoo_id || 'N/A'}`;
+            }
+            document.getElementById('gamePhase').textContent = `Phase: ${state.phase}`;
+
+            // Update leading bids tracker from current state
+            if (state.auction && state.auction.highest_bids) {
+                leadingBids = {};
+                pendingBids = {};
+
+                Object.entries(state.auction.highest_bids).forEach(([animalId, bidInfo]) => {
+                    if (bidInfo.bidder) {
+                        leadingBids[animalId] = bidInfo.bidder;
+
+                        // If we're the current leader, add to pending bids
+                        if (bidInfo.bidder === username) {
+                            pendingBids[animalId] = bidInfo.amount;
+                        }
+                    }
+                });
+
+                updatePendingBidsDisplay();
+            }
+
+
+            // Update My Animals List
+            updateMyAnimalsList(state);
+
+            // Update Auction Area
+            updateAuctionArea(state);
+        }
+
+        function updateMyAnimalsList(state) {
+            const myAnimalsListEl = document.getElementById('myAnimalsList');
+            myAnimalsListEl.innerHTML = '';
+
+            if (currentPlayer && currentPlayer.owned_animals && currentPlayer.owned_animals.length > 0 && state.animal_database) {
+                // Group animals by tier
+                const animalsByTier = {};
+                currentPlayer.owned_animals.forEach(animalId => {
+                    const animal = state.animal_database[animalId];
+                    if (animal) {
+                        if (!animalsByTier[animal.tier]) {
+                            animalsByTier[animal.tier] = [];
+                        }
+                        animalsByTier[animal.tier].push(animal);
+                    }
+                });
+
+                // Display animals grouped by tier
+                Object.keys(animalsByTier).sort().forEach(tier => {
+                    const tierHeader = document.createElement('li');
+                    tierHeader.style.cssText = 'font-weight: 600; color: #475569; margin: 10px 0 5px 0; font-size: 0.9em;';
+                    tierHeader.textContent = `Tier ${tier} Animals`;
+                    myAnimalsListEl.appendChild(tierHeader);
+
+                    animalsByTier[tier].forEach(animal => {
+                        const li = document.createElement('li');
+                        li.className = 'animal-item';
+                        li.innerHTML = `
+                            <strong>${animal.name}</strong> (#${animal.id})
+                            <br><span style="font-size: 0.85em; color: #64748b;">
+                            ${animal.biome}, Value: ${animal.base_price} coins
+                            </span>
+                        `;
+                        myAnimalsListEl.appendChild(li);
+                    });
+                });
+            } else {
+                const li = document.createElement('li');
+                li.className = 'animal-item';
+                li.style.textAlign = 'center';
+                li.innerHTML = 'No animals yet.<br><span style="font-size: 0.9em; color: #64748b;">Start bidding to build your collection!</span>';
+                myAnimalsListEl.appendChild(li);
+            }
+        }
+
+        function updateAuctionArea(state) {
+            const auctionContentEl = document.getElementById('auctionContent');
+            const auctionTitleEl = document.getElementById('auctionTitle');
+
+            if (state.phase === 'auction' && state.auction && state.auction.current_animals && state.auction.current_animals.length > 0) {
+                auctionTitleEl.textContent = `Live Auction - Tier ${state.auction.current_tier}`;
+                auctionContentEl.innerHTML = '';
+
+                state.auction.current_animals.forEach(animal => {
+                    const bidInfo = state.auction.highest_bids[animal.id];
+                    const currentBid = bidInfo?.amount ?? animal.base_price;
+                    const bidderName = bidInfo?.bidder ?? 'No Bids';
+
+                    let leadingTierCount = 0;
+                    if (currentPlayer) {
+                        Object.entries(state.auction.highest_bids).forEach(([aid, info]) => {
+                            if (info.bidder === username && aid !== animal.id) {
+                                const otherAnimal = state.animal_database[aid];
+                                if (otherAnimal && otherAnimal.tier === animal.tier) {
+                                    leadingTierCount++;
+                                }
+                            }
+                        });
+                    }
+
+                    const tierLimits = { 1: 2, 2: 2, 3: 3, 4: 55 }; // Adjust based on your actual limits
+                    const tierLimit = tierLimits[animal.tier] || 120;
+                    const canBidOnMore = leadingTierCount < tierLimit;
+
+                    const card = document.createElement('div');
+                    card.className = `animal-card biome-${animal.biome}`;
+                    card.id = `animal-${animal.id}`;
+                    if (bidderName === username) {
+                        card.classList.add('is-leader');
+                    }
+
+                    // Calculate max bid based on available money and pending bids
+                    const totalPending = Object.values(pendingBids).reduce((sum, amount) => sum + amount, 0);
+                    const availableMoney = currentPlayer ? currentPlayer.money - totalPending : 0;
+                    const maxBid = Math.max(0, availableMoney);
+
+                    card.innerHTML = `
+                        <h4>${animal.name} (#${animal.id})</h4>
+                        <p><strong>Tier:</strong> ${animal.tier} | <strong>Biome:</strong> ${animal.biome}</p>
+                        <p><strong>Base Price:</strong> ${animal.base_price}</p>
+                        <p><strong>Current Bid:</strong> <span class="bid-amount">${currentBid}</span></p>
+                        <p><strong>Leading Bidder:</strong> <span class="bid-leader">${bidderName}</span></p>
+                        ${leadingTierCount > 0 ? `<p style="color: rgba(255,200,0,0.9); font-size: 0.85em;">⚠️ Leading ${leadingTierCount}/${tierLimit} Tier ${animal.tier} animals</p>` : ''}
+                            <form class="bid-form" onsubmit="placeBid(event, '${animal.id}')">
+                        <input type="number" 
+                               class="bid-input" 
+                               placeholder="Min $${currentBid + 1}" 
+                               min="${currentBid + 1}" 
+                               max="${maxBid}"
+                            ${!canBidOnMore ? 'disabled' : ''}
+                        required>
+                        <button type="submit" class="bid-btn" ${maxBid < currentBid + 1 || !canBidOnMore ? 'disabled' : ''}>BID</button>
+                        </form>
+                            ${!canBidOnMore ? `<p style="color: rgba(255,100,100,0.9); font-size: 0.85em;">🚫 Tier ${animal.tier} limit reached</p>` : ''}
+                            ${maxBid < currentBid + 1 && canBidOnMore ? '<p style="color: rgba(255,200,0,0.9); font-size: 0.85em;">⚠️ Insufficient funds for minimum bid</p>' : ''}
+                        `;
+                    auctionContentEl.appendChild(card);
+                });
+
+                // Start timer if auction is active
+                if (state.auction.time_remaining > 0) {
+                    startTimer(state.auction.time_remaining);
+                }
+            } else {
+                pendingBids = {};
+                leadingBids = {};
+                updatePendingBidsDisplay();
+
+                auctionTitleEl.textContent = 'Live Auction';
+                auctionContentEl.innerHTML = `
+                    <p style="text-align: center; color: #64748b; font-size: 1.1em;">
+                        Waiting for auction to start...<br>
+                    </p>
+                `;
+                document.getElementById('auctionTimer').textContent = '';
+                stopTimer();
+            }
+        }
+
+        function updateAnimalBid(bidData) {
+            console.log('Received bid update:', bidData);
+
+            const wasLeading = leadingBids[bidData.animal_id] === username;
+            const isNowLeading = bidData.highest_bidder === username;
+
+            if (wasLeading && !isNowLeading) {
+                // We've been outbid! Show alert
+                const animal = findAnimalById(bidData.animal_id);
+                if (animal) {
+                    showBidAlert(animal.name, animal.id, bidData.highest_bidder, bidData.highest_bid);
+                }
+
+                delete pendingBids[bidData.animal_id];
+                updatePendingBidsDisplay();
+            }
+
+            // Update our leading bids tracker
+            if (bidData.highest_bidder) {
+                leadingBids[bidData.animal_id] = bidData.highest_bidder;
+            }
+
+            // Update pending bids if it's our bid
+            if (bidData.highest_bidder === username) {
+                pendingBids[bidData.animal_id] = bidData.highest_bid;
+                updatePendingBidsDisplay();
+            }
+
+            const card = document.getElementById(`animal-${bidData.animal_id}`);
+            if (card) {
+                // Update bid amount and leader
+                const bidAmountEl = card.querySelector('.bid-amount');
+                const bidLeaderEl = card.querySelector('.bid-leader');
+                const bidInput = card.querySelector('.bid-input');
+                const bidBtn = card.querySelector('.bid-btn');
+
+                if (bidAmountEl) bidAmountEl.textContent = bidData.highest_bid;
+                if (bidLeaderEl) bidLeaderEl.textContent = bidData.highest_bidder;
+
+                if (bidInput) {
+                    bidInput.min = bidData.highest_bid + 1;
+                    bidInput.placeholder = `Min ${bidData.highest_bid + 1}`;
+
+                    // Update max bid based on available funds
+                    if (currentPlayer) {
+                        const totalPending = Object.values(pendingBids).reduce((sum, amount) => sum + amount, 0);
+                        const availableMoney = currentPlayer.money - totalPending;
+                        bidInput.max = Math.max(0, availableMoney);
+
+                        // Disable button if can't afford minimum bid
+                        if (bidBtn) {
+                            bidBtn.disabled = availableMoney < bidData.highest_bid + 1;
+                        }
+                    }
+                }
+
+                // Update leader highlighting
+                document.querySelectorAll('.animal-card').forEach(c => {
+                    if (c.id === `animal-${bidData.animal_id}`) {
+                        c.classList.toggle('is-leader', bidData.highest_bidder === username);
+                    }
+                });
+
+                // Refresh all bid input max values since available money has changed
+                refreshAllBidInputs();
+            }
+        }
+
+        function refreshAllBidInputs() {
+            if (!currentPlayer) return;
+
+            const totalPending = Object.values(pendingBids).reduce((sum, amount) => sum + amount, 0);
+            const availableMoney = currentPlayer.money - totalPending;
+
+            // Update all bid inputs with new max values
+            document.querySelectorAll('.animal-card').forEach(card => {
+                const bidInput = card.querySelector('.bid-input');
+                const bidBtn = card.querySelector('.bid-btn');
+
+                if (bidInput) {
+                    bidInput.max = Math.max(0, availableMoney);
+
+                    // Check if button should be disabled
+                    const minBid = parseInt(bidInput.min);
+                    if (bidBtn && !bidBtn.disabled) { // Only update if not already disabled for other reasons
+                        const tierLimitReached = bidBtn.textContent === 'BID' && bidBtn.disabled; // Check if disabled due to tier limit
+                        if (!tierLimitReached) {
+                            bidBtn.disabled = availableMoney < minBid;
+                        }
+                    }
+                }
+            });
+        }
+
+        function findAnimalById(animalId) {
+            // Try to find in current auction animals first
+            const auctionContent = document.getElementById('auctionContent');
+            const card = document.getElementById(`animal-${animalId}`);
+            if (card) {
+                const nameElement = card.querySelector('h4');
+                if (nameElement) {
+                    const nameMatch = nameElement.textContent.match(/(.+) \(#/);
+                    if (nameMatch) {
+                        return { id: animalId, name: nameMatch[1] };
+                    }
+                }
+            }
+
+            // Fallback: return basic info
+            return { id: animalId, name: `Animal ${animalId}` };
+        }
+
+        function updateTimer(data) {
+            updateTimerDisplay(data.time_remaining);
+        }
+
+        function updatePendingBidsDisplay() {
+            const totalPending = Object.values(pendingBids).reduce((sum, amount) => sum + amount, 0);
+            const pendingBidsEl = document.getElementById('pendingBids');
+            const pendingAmountEl = document.getElementById('pendingAmount');
+
+            if (totalPending > 0) {
+                pendingAmountEl.textContent = totalPending;
+                pendingBidsEl.classList.add('show');
+            } else {
+                pendingBidsEl.classList.remove('show');
+            }
+        }
+
+        // --- Event Handlers ---
+        function placeBid(event, animalId) {
+            event.preventDefault();
+            const form = event.target;
+            const input = form.querySelector('.bid-input');
+            const button = form.querySelector('.bid-btn');
+            const bidAmount = parseInt(input.value);
+
+            if (!bidAmount || bidAmount <= 0) {
+                showStatus('❌ Please enter a valid bid amount', 'error');
+                return;
+            }
+
+            if (currentPlayer) {
+                // Check against available money (total money - pending bids)
+                const totalPending = Object.values(pendingBids).reduce((sum, amount) => sum + amount, 0);
+                const availableMoney = currentPlayer.money - totalPending;
+
+                if (bidAmount > availableMoney) {
+                    showStatus('💸 Insufficient funds! Check your pending bids.', 'error');
+                    return;
+                }
+            }
+
+            // Disable button to prevent double-clicking
+            button.disabled = true;
+            button.textContent = 'BIDDING...';
+
+            console.log('Placing bid:', { animal_id: animalId, bid_amount: bidAmount });
+            socket.emit('place_bid', { animal_id: animalId, bid_amount: bidAmount });
+
+            input.value = '';
+
+            // Re-enable button after a short delay if no response
+            setTimeout(() => {
+                button.disabled = false;
+                button.textContent = 'BID';
+            }, 3000);
+        }
+
+        function showStatus(message, type = 'info') {
+            const el = document.getElementById('statusMessage');
+            el.textContent = message;
+            el.className = `status-message ${type} show`;
+            setTimeout(() => {
+                el.classList.remove('show');
+            }, 4000);
+        }
+
+        // Request initial game state on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            setTimeout(() => {
+                socket.emit('request_game_state');
+            }, 500);
+        });
+    </script>
+</body>
+
+</html>
