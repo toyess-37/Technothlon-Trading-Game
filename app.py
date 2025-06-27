@@ -1,3 +1,4 @@
+import os
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from flask_socketio import SocketIO, emit
 import threading
@@ -5,11 +6,13 @@ from zoo_auction_system import GameState, Player
 from typing import List, Dict, Optional, Any, Tuple, Callable
 
 app = Flask(__name__, template_folder='templates')
-app.config['SECRET_KEY'] = 'your-very-secret-key'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'very-secret-key')
+
+# Configure SocketIO for production
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Global game state
-game_state = GameState(None)
+game_state = GameState(socketio_callback=None)
 game_lock = threading.Lock()
 
 def socketio_callback(event, data):
@@ -29,7 +32,9 @@ def handle_login():
     username = request.form.get('username')
     password = request.form.get('password') # For admin
 
-    if username == 'admin' and password == 'password': # Simple admin auth
+    admin_password = os.environ.get('ADMIN_PASSWORD', 'password')
+
+    if username == 'admin' and password == admin_password: # Simple admin auth
         session['user_type'] = 'admin'
         session['username'] = 'admin'
         return redirect(url_for('admin_dashboard'))
@@ -55,13 +60,11 @@ def handle_login():
     
     return redirect(url_for('login_page'))
 
-
 @app.route('/logout')
 def logout():
     """Logs the user out."""
     session.clear()
     return redirect(url_for('login_page'))
-
 
 # =========== Admin Routes ===========
 @app.route('/admin')
@@ -115,7 +118,6 @@ def start_auction_tier():
             print(f"Error starting auction: {e}")
             return jsonify({'success': False, 'message': f'Error starting auction: {str(e)}'}), 500
 
-
 @app.route('/api/admin/game/stop_auction', methods=['POST'])
 def stop_auction():
     """Admin action: Stop the current auction."""
@@ -144,7 +146,6 @@ def stop_auction():
             print(f"Error stopping auction: {e}")
             return jsonify({'success': False, 'message': f'Error stopping auction: {str(e)}'}), 500
 
-
 # =========== Player Routes ===========
 @app.route('/player')
 def player_view():
@@ -152,7 +153,6 @@ def player_view():
     if session.get('user_type') != 'player':
         return redirect(url_for('login_page'))
     return render_template('player.html', username=session.get('username'))
-
 
 # =========== Shared API Routes ===========
 @app.route('/api/game/status')
@@ -162,7 +162,6 @@ def get_game_status():
         if not game_state:
             return jsonify({'error': 'Game not initialized'}), 404
         return jsonify(game_state.get_game_state_dict())
-
 
 # =========== SocketIO Events ===========
 @socketio.on('connect')
@@ -244,6 +243,6 @@ def handle_socketio_bid(data):
             print(f"Error processing bid: {e}")
             emit('bid_result', {'success': False, 'message': f'Error processing bid: {str(e)}'})
 
-
 if __name__ == '__main__':
-    socketio.run(app, debug=True, host='localhost', port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    socketio.run(app, host='0.0.0.0', port=port, debug=False)

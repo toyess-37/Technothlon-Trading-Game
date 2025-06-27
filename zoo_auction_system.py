@@ -544,11 +544,13 @@ class GameState:
         zoo_data = initialize_zoos()
         for zoo_id, zoo_dict in zoo_data.items():
             self.available_zoos[zoo_id] = Zoo(zoo_dict)
+
+        csv_path = os.path.join(os.path.dirname(__file__), 'zoo_animals.csv')
         
         # Initialize animals - generate specified counts per tier
         animal_data = initialize_animals(
-            count_per_tier={1: 2, 2: 4, 3: 7, 4: 11}, 
-            csv_file_path='zoo_animals.csv'  # Will fall back to default names if file not found
+            count_per_tier={1: 2, 2: 4, 3: 7, 4: 11},
+            csv_file_path=csv_path
         )
         for animal_id, animal_dict in animal_data.items():
             self.animal_database[animal_id] = Animal(animal_dict)
