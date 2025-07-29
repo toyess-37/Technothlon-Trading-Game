@@ -14,8 +14,7 @@ Future challenge will be to create a trading interface to automate the complete 
 
 ### Auction Segment
 
-A real-time multiplayer zoo auction game built with Flask, SocketIO, and modern web technologies. Players bid on animals to build their zoos while an admin manages auction rounds. The live website can be found at https://web-production-dafc.up.railway.app/.
-
+A real-time multiplayer zoo auction game built with Flask, SocketIO, and modern web technologies. Players bid on animals to build their zoos while an admin manages auction rounds.
 #### Key Features
 
 - **Real-time Multiplayer**: Up to 25 players can participate simultaneously
